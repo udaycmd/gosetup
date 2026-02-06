@@ -26,6 +26,68 @@
 
 set -euo pipefail
 
-function version {
+function show_version {
     echo "0.1.0"
 }
+
+function detect_platform {
+    local os
+    local arch
+
+    os=$(uname -s)
+    arch=$(uname -m)
+
+    case $os in
+        "Linux")
+            os="linux"
+            case $arch in
+                "x86_64")
+                    arch="amd64"
+                    ;;
+                "i386")
+                    arch="386"
+                    ;;
+                "aarch64" | "armv8")
+                    arch="arm64"
+                    ;;
+                "armv6")
+                    arch="armv6l"
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    echo "$os-$arch"
+}
+
+function get_shell_profile {
+    case "$SHELL" in
+        *zsh)
+            echo "zshrc"
+            ;;
+        *bash)
+            echo "bashrc"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+function get_downloader {
+    if command -v curl &>/dev/null; then
+        echo "curl -fsSL"
+    elif command -v wget &>/dev/null; then
+        echo "wget -qO-"
+    else
+        return 1
+    fi
+}
+
+get_downloader
