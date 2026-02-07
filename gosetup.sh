@@ -26,8 +26,13 @@
 
 set -euo pipefail
 
-function show_version {
-    echo "0.1.0"
+RED_COLOR="\e[31m"
+GREEN_COLOR="\e[32m"
+CYAN_COLOR="\e[36m"
+RESET="\e[0m"
+
+function show_gosetup_version {
+    :
 }
 
 function detect_platform {
@@ -80,14 +85,53 @@ function get_shell_profile {
     esac
 }
 
+function current_go_version {
+    go version
+}
+
 function get_downloader {
     if command -v curl &>/dev/null; then
-        echo "curl -fsSL"
+        echo "curl"
     elif command -v wget &>/dev/null; then
-        echo "wget -qO-"
+        echo "wget"
     else
         return 1
     fi
 }
 
-get_downloader
+function download_go {
+    local downloader
+
+    if downloader=$(get_downloader); then
+        echo "$downloader"
+    else
+        echo -e "${RED_COLOR}Error:${RESET} Neither 'curl' nor 'wget' is installed in you system, please install one of them." >&2
+        exit 1
+    fi
+}
+
+function help {
+    echo -e "${CYAN_COLOR}Usage:${RESET} $(basename "$0") [command] [option]"
+    echo -e ""
+    echo -e "${CYAN_COLOR}Commands:${RESET}"
+    echo -e "   ${GREEN_COLOR}install <dir>${RESET}            Install Go binary for the host architecture in 'dir' (default is ~/.local/go)"
+    echo -e "   ${GREEN_COLOR}install -a <arch> <dir>${RESET}  Install Go binary for a specific architecture in 'dir' (default is ~/.local/go-<arch>)"
+    echo -e "   ${GREEN_COLOR}source <dir>${RESET}             Get the Go source code in 'dir' (default is ~/.local/go-src)"
+    echo -e "   ${GREEN_COLOR}upgrade <dir>${RESET}            Upgrade current Go binary in 'dir' (default search location is ~/.local/)"
+    echo -e "   ${GREEN_COLOR}help${RESET}                     Print this help message"
+    echo -e ""
+    echo -e "${CYAN_COLOR}Options:${RESET}"
+    echo -e "   ${GREEN_COLOR}-a, --architecture${RESET}       Specify architecture (e.g., amd64 or arm64)"
+    echo -e ""
+    echo -e "${CYAN_COLOR}Examples:${RESET}"
+    echo -e "   ${GREEN_COLOR}$(basename "$0") install${RESET}"
+    echo -e "   ${GREEN_COLOR}$(basename "$0") install -a i386 ~/.my_softwares/mygo_x86${RESET}"
+    echo -e "   ${GREEN_COLOR}$(basename "$0") source${RESET}"
+    echo -e "   ${GREEN_COLOR}$(basename "$0") upgrade ~/.my_softwares/mygo${RESET}"
+}
+
+function main {
+    help
+}
+
+main "$@"
