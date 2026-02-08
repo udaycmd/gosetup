@@ -32,51 +32,38 @@ CYAN_COLOR="\e[36m"
 RESET="\e[0m"
 GO_VERSION_REGEX="[0-9]+\.[0-9]+(\.[0-9]+)?"
 
-function check_arch_string {
-    case $1 in
-        "x86_64" | "amd64")
-            echo "amd64"
-            ;;
-        "i386")
-            echo "386"
-            ;;
-        "aarch64" | "armv8" | "arm64")
-            echo "arm64"
-            ;;
-        "armv6")
-            echo "armv6l"
+function detect_host_platform {
+    local os=
+    local arch=
+
+    os=$(uname -s)
+    arch=$(uname -m)
+
+    case $os in
+        "Linux")
+            os="linux"
+            case $arch in
+                "x86_64")
+                    arch="amd64"
+                    ;;
+                "i386")
+                    arch="386"
+                    ;;
+                "aarch64" | "armv8")
+                    arch="arm64"
+                    ;;
+                "armv6")
+                    arch="armv6l"
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
             ;;
         *)
             return 1
             ;;
     esac
-}
-
-function detect_host_os {
-    local os=
-
-    os=$(uname -s)
-
-    if [[ "$os" == "Linux" ]]; then
-        echo "linux"
-    else
-        return 1
-    fi
-}
-
-function detect_host_platform {
-    local os=
-    local arch=
-
-    arch=$(uname -m)
-
-    if ! os=$(detect_host_os); then
-        return 1
-    fi
-
-    if ! arch=$(check_arch_string "$arch"); then
-        return 1
-    fi
 
     echo "$os-$arch"
 }
@@ -222,30 +209,15 @@ function installer {
         fi
     fi
 
-    if [[ -z $2 ]]; then
-        if ! platform=$(detect_host_platform); then
-            echo -e "${RED_COLOR}Error:${RESET} Unsupported host platform." >&2
-            exit 1
-        fi
-    else
-        if ! platform=$(check_arch_string "$2"); then
-            echo -e "${RED_COLOR}Error:${RESET} Unsupported CPU architecture." >&2
-            exit 1
-        fi
-
-        local os=
-        if ! os=$(detect_host_os); then
-            echo -e "${RED_COLOR}Error:${RESET} Unsupported OS." >&2
-            exit 1
-        fi
-
-        platform="$os-$platform"
+    if ! platform=$(detect_host_platform); then
+        echo -e "${RED_COLOR}Error:${RESET} Unsupported host platform." >&2
+        exit 1
     fi
 
-    if [[ -z $3 ]]; then
+    if [[ -z $2 ]]; then
         dir="$HOME/.local/go"
     else
-        dir="$3"
+        dir="$2"
     fi
 
     if ! [[ -d $dir ]]; then
@@ -268,20 +240,15 @@ function help {
     echo -e "${CYAN_COLOR}Usage:${RESET} $(basename "$0") [command] [option]"
     echo -e ""
     echo -e "${CYAN_COLOR}Commands:${RESET}"
-    echo -e "   ${GREEN_COLOR}install [Version] [Directory]${RESET}            Install the latest Go binary for the host architecture inside 'dir' (default is ~/.local/go)"
-    echo -e "   ${GREEN_COLOR}install -a <Arch> [Version] [Directory]${RESET}  Install Go binary for a specific architecture inside 'dir' (default is ~/.local/go-<arch>)"
-    echo -e "   ${GREEN_COLOR}src [Dir]${RESET}                                Get the Go source code inside 'dir' (default is ~/.local/go-src)"
-    echo -e "   ${GREEN_COLOR}upgrade [Dir]${RESET}                            Upgrade current Go binary inside 'dir' (default search location is ~/.local/go)"
-    echo -e "   ${GREEN_COLOR}help, --help, -h${RESET}                         Print this help message"
-    echo -e ""
-    echo -e "${CYAN_COLOR}Options:${RESET}"
-    echo -e "   ${GREEN_COLOR}-a, --architecture${RESET}                       Specify architecture (e.g., amd64 or arm64)"
+    echo -e "   ${GREEN_COLOR}install [Version] [Directory]${RESET}      Install the latest Go binary for the host architecture inside 'dir' (default is ~/.local/go)"
+    echo -e "   ${GREEN_COLOR}src [Directory]${RESET}                    Get the Go source code inside 'dir' (default is ~/.local/go-src)"
+    echo -e "   ${GREEN_COLOR}upgrade [Directory]${RESET}                Upgrade current Go binary inside 'dir' (default search location is ~/.local/go)"
+    echo -e "   ${GREEN_COLOR}help, --help, -h${RESET}                   Print this help message"
     echo -e ""
     echo -e "${CYAN_COLOR}Examples:${RESET}"
     echo -e "   ${GREEN_COLOR}$(basename "$0") install 1.21${RESET}"
     echo -e "   ${GREEN_COLOR}$(basename "$0") install or install latest${RESET}"
-    echo -e "   ${GREEN_COLOR}$(basename "$0") install -a i386 1.19 ~/.my_softwares/mygo_x86${RESET}"
-    echo -e "   ${GREEN_COLOR}$(basename "$0") src${RESET}"
+    echo -e "   ${GREEN_COLOR}$(basename "$0") src ~/.my_softwares/go-src${RESET}"
     echo -e "   ${GREEN_COLOR}$(basename "$0") upgrade ~/.my_softwares/mygo${RESET}"
     echo -e ""
     echo -e "${CYAN_COLOR}Note:${RESET}"
@@ -292,7 +259,6 @@ function help {
 
 function main {
     local cmd=
-    local arch=
     local version=
     local dir=
 
@@ -308,15 +274,6 @@ function main {
         "install")
             while (( $# > 0 )); do
                 case $1 in
-                    "-a" | "--architecture")
-                        if [[ -n "$2" ]]; then
-                            arch="$2"
-                            shift 2
-                        else
-                            echo -e "${RED_COLOR}Error:${RESET} '--architecture' requires an argument." >&2
-                            exit 1
-                        fi
-                        ;;
                     *)
                         if [[ -z "$version" ]]; then
                             version="$1"
@@ -330,7 +287,7 @@ function main {
                         ;;
                 esac
             done
-            installer "$version" "$arch" "$dir"
+            installer "$version" "$dir"
             ;;
         "upgrade")
             upgrade "$@"
