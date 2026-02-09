@@ -88,15 +88,14 @@ function get_downloader {
     elif command -v wget &>/dev/null; then
         echo "wget -q"
     else
-        return 1
+        echo -e "${RED_COLOR}Error:${RESET} Neither 'curl' nor 'wget' is installed in you system, please install one of them." >&2
+        exit 1
     fi
 }
 
 function get_installed_go_version {
-    local str=
-
-    if str=$(go version); then
-        echo "$str" | grep -oE "go$GO_VERSION_REGEX"
+    if go version &>/dev/null; then
+        go version | grep -oE "go$GO_VERSION_REGEX"
     else
         return 1
     fi
@@ -106,7 +105,11 @@ function get_latest_go_version {
     local downloader=
     local go_version_re="go$GO_VERSION_REGEX"
 
-    downloader=$(get_downloader) # already checked before comming here
+    downloader=$(get_downloader)
+    if [[ $downloader == *"wget"* ]]; then
+        downloader="$downloader -O-"
+    fi
+
     $downloader "https://go.dev/dl/" | grep -oE "$go_version_re" | grep -v "rc" | head -n 1
 }
 
@@ -114,21 +117,52 @@ function extract_tar {
     tar -xzf "$1"
 }
 
-function install_go {
+function check_installation {
+    if [ $? -ne 0 ]; then
+        echo -e "${RED_COLOR}Error:${RESET} Installation failed." >&2
+        exit 1
+    fi
+
+    echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} Go installation is successfull!${RESET}"
+    echo -e "${CYAN_COLOR}Info:${RESET} Open a new terminal or re-login into current one."
+}
+
+function download_it {
     local downloader=
+
+    downloader=$(get_downloader)
+
+     if [[ $downloader == *"curl"* ]]; then
+         echo -e "${CYAN_COLOR}Info:${RESET} Downloading with curl"
+
+         if ! $downloader -fS "https://go.dev/dl/$1" -o "$2/$1"; then
+             return 1
+         fi
+     else
+         echo -e "${CYAN_COLOR}Info:${RESET} Downloading with wget"
+
+         if ! $downloader -cP "$2/" "https://go.dev/dl/$1"; then
+             return 1
+         fi
+     fi
+}
+
+function install_go {
     local installed_go_ver=
     local latest_ver=
     local go_ver=
     local dir=
     local platform=
-
-    if ! downloader=$(get_downloader); then
-        echo -e "${RED_COLOR}Error:${RESET} Neither 'curl' nor 'wget' is installed in you system, please install one of them." >&2
-        exit 1
-    fi
+    local file=
+    local shell_profile=
 
     if installed_go_ver=$(get_installed_go_version); then
         echo -e "${CYAN_COLOR}Info:${RESET} existing go installation found with $installed_go_ver"
+    fi
+
+    if ! latest_ver=$(get_latest_go_version); then
+        echo -e "${RED_COLOR}Error:${RESET} Unable to get latest go version" >&2
+        return 1
     fi
 
     if [[ $installed_go_ver == "go$1" ]]; then
@@ -139,50 +173,88 @@ function install_go {
     fi
 
     if [[ $1 == "latest" ]]; then
-        latest_ver=$(get_latest_go_version)
-
-        if [[ -z "$latest_ver" ]]; then
-            echo -e "${RED_COLOR}Error:${RESET} Unable to get latest go version" >&2
-            exit 1
-        fi
-    fi
-
-    if [[ $installed_go_ver == "$latest_ver" ]]; then
-        echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} go installation already statisfied with version $1.${RESET}"
-        exit 0
-    else
-        if [[ -n $latest_ver ]]; then  # can be "" == ""
+        if [[ $installed_go_ver == "$latest_ver" ]]; then
+            echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} go installation already statisfied with version '$1'.${RESET}"
+            exit 0
+        else
             go_ver=$latest_ver
         fi
     fi
 
     platform=$2
     dir=$3
+    file="${go_ver}.${platform}.tar.gz"
 
     echo -e "${CYAN_COLOR}Info:${RESET} Downloading ${go_ver} for ${platform} at ${dir}"
 
-    if [[ $downloader == *"curl"* ]]; then
-        echo -e "${CYAN_COLOR}Info:${RESET} Downloading with curl"
-
-        if ! $downloader -fSL "https://go.dev/dl/${go_ver}.${platform}.tar.gz" -o "$dir/${go_ver}.${platform}.tar.gz"; then
-            echo -e "${RED_COLOR}Error:(curl)${RESET} Download failed." >&2
-            exit 1
-        fi
-    else
-        echo -e "${CYAN_COLOR}Info:${RESET} Downloading with wget"
-
-        if ! $downloader -cP "$dir/" "https://go.dev/dl/${go_ver}.${platform}.tar.gz"; then
-            echo -e "${RED_COLOR}Error:(wget)${RESET} Download failed." >&2
-            exit 1
-        fi
+    if ! download_it "$file" "$dir"; then
+        echo -e "${RED_COLOR}Error:${RESET} Download failed." >&2
+        exit 1
     fi
 
     echo -e "${CYAN_COLOR}Info:${RESET} Extracting binary archive at ${dir}"
 
-    if ! extract_tar "${dir}/${go_ver}.${platform}.tar.gz"; then
-        echo -e "${RED_COLOR}Error:(wget)${RESET} Unable to extract the archive" >&2
+    if ! extract_tar "$dir/$file"; then
+        echo -e "${RED_COLOR}Error:${RESET} Unable to extract the archive" >&2
+        return 1
+    fi
+
+    rm -v "$dir/$file"
+
+    local GOROOT="$dir/go"
+    [ -z "${GOPATH:-}" ] && GOPATH="$HOME/.go"
+
+    mkdir -p "$GOPATH/bin"
+
+    if ! shell_profile=$(get_shell_profile); then
+        echo -e "${RED_COLOR}Error:${RESET} Cannot detect current shell profile." >&2
+        return 1
+    fi
+
+    touch "$HOME/.${shell_profile}"
+    {
+      echo '# gosetup'
+      echo "export GOROOT=$GOROOT"
+      echo "export GOPATH=$GOPATH"
+      # shellcheck disable=SC2016
+      echo 'export PATH=$PATH:$GOROOT/bin:$GOPATH/bin'
+    } >>"$HOME/.${shell_profile}"
+}
+
+function get_go_source {
+    local ver="go$1"
+    local dir=$2
+    local file=
+
+    if [[ $ver == *"latest"* ]]; then
+        ver=$(get_latest_go_version)
+
+        if [[ -z "$ver" ]]; then
+            echo -e "${RED_COLOR}Error:${RESET} Unable to get latest go version" >&2
+            return 1
+        fi
+    fi
+
+    file="${ver}.src.tar.gz"
+
+    echo -e "${CYAN_COLOR}Info:${RESET} Downloading Go Source for ${ver} at ${dir}"
+
+    if ! download_it "$file" "$dir"; then
+        echo -e "${RED_COLOR}Error:${RESET} Download failed." >&2
         exit 1
     fi
+
+    echo -e "${CYAN_COLOR}Info:${RESET} Extracting binary archive at ${dir}"
+
+    if ! extract_tar "$dir/$file"; then
+        echo -e "${RED_COLOR}Error:${RESET} Unable to extract the archive" >&2
+        return 1
+    fi
+
+    rm -v "$dir/$file"
+
+    echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} Go source is downloaded!${RESET}"
+    exit 0
 }
 
 function check_version_string {
@@ -215,9 +287,9 @@ function installer {
     fi
 
     if [[ -z $2 ]]; then
-        dir="$HOME/.local/go"
+        dir="$HOME/.local/"
     else
-        dir="$2"
+        dir="$(cd "$2" && pwd)"
     fi
 
     if ! [[ -d $dir ]]; then
@@ -225,15 +297,12 @@ function installer {
         exit 1
     fi
 
-    install_go "$ver" "$platform" "$dir"
-}
-
-function upgrade {
-    :
-}
-
-function get_source {
-    :
+    if $3; then
+        install_go "$ver" "$platform" "$dir"
+        check_installation
+    else
+        get_go_source "$ver" "$dir"
+    fi
 }
 
 function help {
@@ -241,20 +310,23 @@ function help {
     echo -e ""
     echo -e "${CYAN_COLOR}Commands:${RESET}"
     echo -e "   ${GREEN_COLOR}install [Version] [Directory]${RESET}      Install the latest Go binary for the host architecture inside 'dir' (default is ~/.local/go)"
-    echo -e "   ${GREEN_COLOR}src [Directory]${RESET}                    Get the Go source code inside 'dir' (default is ~/.local/go-src)"
+    echo -e "   ${GREEN_COLOR}src [Directory]${RESET}                    Get the Go source code inside 'dir' (default is ~/.local/go)"
     echo -e "   ${GREEN_COLOR}upgrade [Directory]${RESET}                Upgrade current Go binary inside 'dir' (default search location is ~/.local/go)"
     echo -e "   ${GREEN_COLOR}help, --help, -h${RESET}                   Print this help message"
     echo -e ""
     echo -e "${CYAN_COLOR}Examples:${RESET}"
     echo -e "   ${GREEN_COLOR}$(basename "$0") install 1.21${RESET}"
     echo -e "   ${GREEN_COLOR}$(basename "$0") install or install latest${RESET}"
-    echo -e "   ${GREEN_COLOR}$(basename "$0") src ~/.my_softwares/go-src${RESET}"
-    echo -e "   ${GREEN_COLOR}$(basename "$0") upgrade ~/.my_softwares/mygo${RESET}"
+    echo -e "   ${GREEN_COLOR}$(basename "$0") src ~/.my_softwares/${RESET}"
+    echo -e "   ${GREEN_COLOR}$(basename "$0") upgrade ~/.my_softwares/mygofer${RESET}"
     echo -e ""
     echo -e "${CYAN_COLOR}Note:${RESET}"
-    echo -e "   ${GREEN_COLOR}Gosetup automatically sets up the GOROOT env variable pointing towards the installation directory.${RESET}"
+    echo -e "   ${GREEN_COLOR}Gosetup automatically set the GOROOT env variable pointing towards the installation directory.${RESET}"
+    echo -e "   ${GREEN_COLOR}Gosetup will set the GOPATH to \$HOME/.go if not set.${RESET}"
     echo -e "   ${GREEN_COLOR}The 'Version' should be formated as <Major>.<Minor>.<Patch>${RESET}"
-    echo -e "   ${GREEN_COLOR}If the given 'Directory' does not exist it will create one.${RESET}"
+    echo -e "   ${GREEN_COLOR}The given installation 'Directory' must exist.${RESET}"
+    echo -e ""
+    echo -e "${CYAN_COLOR}Version:${RESET} ${GREEN_COLOR}1.0.0${RESET}"
 }
 
 function main {
@@ -271,7 +343,7 @@ function main {
     shift
 
     case "$cmd" in
-        "install")
+        "install" | "src")
             while (( $# > 0 )); do
                 case $1 in
                     *)
@@ -287,13 +359,15 @@ function main {
                         ;;
                 esac
             done
-            installer "$version" "$dir"
+
+            if [[ $cmd == "src" ]]; then
+                installer "$version" "$dir" false
+            else
+                installer "$version" "$dir" true
+            fi
             ;;
         "upgrade")
             upgrade "$@"
-            ;;
-        "src")
-            get_source "$@"
             ;;
         "help" | "-h" | "--help")
             help
