@@ -206,13 +206,17 @@ function get_go_source {
 function install_go {
     local installed_go_ver=
     local go_ver=
-    local dir=
+    local dir=$3
     local platform=
     local file=
     local shell_profile=
 
     if installed_go_ver=$(get_installed_go_version); then
-        echo -e "${CYAN_COLOR}Info:${RESET} Existing Go installation found with $installed_go_ver"
+        echo -e "${CYAN_COLOR}Info:${RESET} Existing Go installation found with $installed_go_ver."
+        if [[ $dir == $(dirname "$(go env GOROOT)") ]]; then
+            echo -e "${RED_COLOR}Error:${RESET} Can't install as go already installed at $dir." >&2
+            return 1
+        fi
     fi
 
     if [[ $installed_go_ver == "go$1" ]]; then
@@ -223,20 +227,19 @@ function install_go {
     fi
 
     platform=$2
-    dir=$3
     file="${go_ver}.${platform}.tar.gz"
 
-    echo -e "${CYAN_COLOR}Info:${RESET} Downloading ${go_ver} for ${platform} at ${dir}"
+    echo -e "${CYAN_COLOR}Info:${RESET} Downloading ${go_ver} for ${platform} at ${dir}."
 
     if ! download_it "$file" "$dir"; then
         echo -e "${RED_COLOR}Error:${RESET} Download failed." >&2
         exit 1
     fi
 
-    echo -e "${CYAN_COLOR}Info:${RESET} Extracting binary archive at ${dir}"
+    echo -e "${CYAN_COLOR}Info:${RESET} Extracting binary archive at ${dir}."
 
     if ! tar -xzf "$dir/$file"; then
-        echo -e "${RED_COLOR}Error:${RESET} Unable to extract the archive" >&2
+        echo -e "${RED_COLOR}Error:${RESET} Unable to extract the archive." >&2
         return 1
     fi
 

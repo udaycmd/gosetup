@@ -1,0 +1,17 @@
+name: Gosetup Tester
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test_matrix:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: $ {{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: test
+        run: ./test/mock.sh
