@@ -93,14 +93,6 @@ function get_downloader {
     fi
 }
 
-function get_installed_go_version {
-    if go version &>/dev/null; then
-        go version | grep -oE "go$GO_VERSION_REGEX"
-    else
-        return 1
-    fi
-}
-
 function get_latest_go_version {
     local downloader=
     local go_version_re="go$GO_VERSION_REGEX"
@@ -111,20 +103,6 @@ function get_latest_go_version {
     fi
 
     $downloader "https://go.dev/dl/" | grep -oE "$go_version_re" | grep -v "rc" | head -n 1
-}
-
-function extract_tar {
-    tar -xzf "$1"
-}
-
-function check_installation {
-    if [ $? -ne 0 ]; then
-        echo -e "${RED_COLOR}Error:${RESET} Installation failed." >&2
-        exit 1
-    fi
-
-    echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} Go installation is successfull!${RESET}"
-    echo -e "${CYAN_COLOR}Info:${RESET} Open a new terminal or re-login into current one."
 }
 
 function download_it {
@@ -147,82 +125,36 @@ function download_it {
      fi
 }
 
-function install_go {
-    local installed_go_ver=
-    local latest_ver=
-    local go_ver=
-    local dir=
-    local platform=
-    local file=
-    local shell_profile=
+function check_version_string {
+    local re="^$GO_VERSION_REGEX$"
 
-    if installed_go_ver=$(get_installed_go_version); then
-        echo -e "${CYAN_COLOR}Info:${RESET} existing go installation found with $installed_go_ver"
-    fi
-
-    if ! latest_ver=$(get_latest_go_version); then
-        echo -e "${RED_COLOR}Error:${RESET} Unable to get latest go version" >&2
+    if [[ $1 =~ $re ]]; then
+        echo "$1"
+    else
         return 1
     fi
+}
 
-    if [[ $installed_go_ver == "go$1" ]]; then
-        echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} go installation already statisfied with version go$1.${RESET}"
-        exit 0
-    else
-        go_ver="go$1"
-    fi
-
-    if [[ $1 == "latest" ]]; then
-        if [[ $installed_go_ver == "$latest_ver" ]]; then
-            echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} go installation already statisfied with version '$1'.${RESET}"
-            exit 0
-        else
-            go_ver=$latest_ver
-        fi
-    fi
-
-    platform=$2
-    dir=$3
-    file="${go_ver}.${platform}.tar.gz"
-
-    echo -e "${CYAN_COLOR}Info:${RESET} Downloading ${go_ver} for ${platform} at ${dir}"
-
-    if ! download_it "$file" "$dir"; then
-        echo -e "${RED_COLOR}Error:${RESET} Download failed." >&2
+function check_installation {
+    if [ $? -ne 0 ]; then
+        echo -e "${RED_COLOR}Error:${RESET} Installation failed." >&2
         exit 1
     fi
 
-    echo -e "${CYAN_COLOR}Info:${RESET} Extracting binary archive at ${dir}"
+    echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} Go installation is successfull!${RESET}"
+    echo -e "${CYAN_COLOR}Info:${RESET} Open a new terminal or re-login into current one."
+}
 
-    if ! extract_tar "$dir/$file"; then
-        echo -e "${RED_COLOR}Error:${RESET} Unable to extract the archive" >&2
+function get_installed_go_version {
+    if go version &>/dev/null; then
+        go version | grep -oE "go$GO_VERSION_REGEX"
+    else
         return 1
     fi
-
-    rm -v "$dir/$file"
-
-    local GOROOT="$dir/go"
-    [ -z "${GOPATH:-}" ] && GOPATH="$HOME/.go"
-
-    mkdir -p "$GOPATH/bin"
-
-    if ! shell_profile=$(get_shell_profile); then
-        echo -e "${RED_COLOR}Error:${RESET} Cannot detect current shell profile." >&2
-        return 1
-    fi
-
-    touch "$HOME/.${shell_profile}"
-    {
-      echo '# gosetup'
-      echo "export GOROOT=$GOROOT"
-      echo "export GOPATH=$GOPATH"
-      # shellcheck disable=SC2016
-      echo 'export PATH=$PATH:$GOROOT/bin:$GOPATH/bin'
-    } >>"$HOME/.${shell_profile}"
 }
 
 function get_go_source {
-    local ver="go$1"
+    local ver="$1"
     local dir=$2
     local file=
 
@@ -246,7 +178,7 @@ function get_go_source {
 
     echo -e "${CYAN_COLOR}Info:${RESET} Extracting binary archive at ${dir}"
 
-    if ! extract_tar "$dir/$file"; then
+    if ! tar -xzf "$dir/$file"; then
         echo -e "${RED_COLOR}Error:${RESET} Unable to extract the archive" >&2
         return 1
     fi
@@ -257,14 +189,64 @@ function get_go_source {
     exit 0
 }
 
-function check_version_string {
-    local re="^$GO_VERSION_REGEX$"
+function install_go {
+    local installed_go_ver=
+    local go_ver=
+    local dir=
+    local platform=
+    local file=
+    local shell_profile=
 
-    if [[ $1 =~ $re ]]; then
-        echo "$1"
+    if installed_go_ver=$(get_installed_go_version); then
+        echo -e "${CYAN_COLOR}Info:${RESET} Existing Go installation found with $installed_go_ver"
+    fi
+
+    if [[ $installed_go_ver == "go$1" ]]; then
+        echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} Go is already installed with version: $1.${RESET}"
+        exit 0
     else
+        go_ver="$1"
+    fi
+
+    platform=$2
+    dir=$3
+    file="${go_ver}.${platform}.tar.gz"
+
+    echo -e "${CYAN_COLOR}Info:${RESET} Downloading ${go_ver} for ${platform} at ${dir}"
+
+    if ! download_it "$file" "$dir"; then
+        echo -e "${RED_COLOR}Error:${RESET} Download failed." >&2
+        exit 1
+    fi
+
+    echo -e "${CYAN_COLOR}Info:${RESET} Extracting binary archive at ${dir}"
+
+    if ! tar -xzf "$dir/$file"; then
+        echo -e "${RED_COLOR}Error:${RESET} Unable to extract the archive" >&2
         return 1
     fi
+
+    rm -v "$dir/$file"
+
+    local GOROOT="$dir/go"
+    [ -z "${GOPATH:-}" ] && GOPATH="$HOME/.go"
+
+    mkdir -p "$GOPATH/bin"
+
+    if ! shell_profile=$(get_shell_profile); then
+        echo -e "${RED_COLOR}Error:${RESET} Cannot detect current shell profile." >&2
+        return 1
+    fi
+
+    touch "$HOME/.${shell_profile}"
+    {
+      echo '# gosetup'
+      echo "export GOROOT=$GOROOT"
+      echo "export GOPATH=$GOPATH"
+      # shellcheck disable=SC2016
+      echo 'export PATH=$PATH:$GOROOT/bin:$GOPATH/bin'
+      echo ""
+    } >>"$HOME/.${shell_profile}"
 }
 
 function installer {
@@ -273,9 +255,14 @@ function installer {
     local dir=
 
     if [[ -z $1 || $1 == "latest" ]]; then
-        ver="latest"
+        ver=$(get_latest_go_version)
+
+        if [[ -z "$ver" ]]; then
+            echo -e "${RED_COLOR}Error:${RESET} Unable to get latest go version" >&2
+            return 1
+        fi
     else
-        if ! ver=$(check_version_string "$1"); then
+        if ! ver="go$(check_version_string "$1")"; then
             echo -e "${RED_COLOR}Error:${RESET} Incorrect version format." >&2
             exit 1
         fi
@@ -318,7 +305,7 @@ function help {
     echo -e "   ${GREEN_COLOR}$(basename "$0") install 1.21${RESET}"
     echo -e "   ${GREEN_COLOR}$(basename "$0") install or install latest${RESET}"
     echo -e "   ${GREEN_COLOR}$(basename "$0") src ~/.my_softwares/${RESET}"
-    echo -e "   ${GREEN_COLOR}$(basename "$0") upgrade ~/.my_softwares/mygofer${RESET}"
+    echo -e "   ${GREEN_COLOR}$(basename "$0") upgrade ~/.my_softwares/mygopher${RESET}"
     echo -e ""
     echo -e "${CYAN_COLOR}Note:${RESET}"
     echo -e "   ${GREEN_COLOR}Gosetup automatically set the GOROOT env variable pointing towards the installation directory.${RESET}"
