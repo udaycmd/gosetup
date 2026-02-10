@@ -203,6 +203,106 @@ function get_go_source {
     exit 0
 }
 
+function remove_go {
+    local installed_ver=
+    local GOROOT=
+    local shell_profile=
+
+    if ! installed_ver=$(get_installed_go_version); then
+        echo -e "${RED_COLOR}Error:${RESET} Go is not installed!" >&2
+        exit 1
+    fi
+
+    GOROOT=$(go env GOROOT)
+
+    if ! shell_profile=$(get_shell_profile); then
+        echo -e "${RED_COLOR}Error:${RESET} Go is not installed!" >&2
+        exit 1
+    fi
+
+    echo -e "${CYAN_COLOR}Info:${RESET} Removeing $installed_ver from your system."
+
+    if ! rm -rf "$GOROOT"; then
+        echo -e "${RED_COLOR}Error:${RESET} Couldn't remove Go at $GOROOT"
+        echo -e "${CYAN_COLOR}Info:${RESET} Try running the srcipt in sudo mode."
+        exit 1
+    fi
+
+    shell_profile="$HOME/.${shell_profile}"
+    echo -e "${CYAN_COLOR}Info:${RESET} Making backup of $shell_profile at $shell_profile-backup"
+
+    if ! cp "$shell_profile" "$shell_profile-backup"; then
+        echo -e "${RED_COLOR}Error:${RESET} Cannot copy $shell_profile"
+        exit 1
+    fi
+
+    # remove the GOPATH and GOROOT exports from shell_profile using the comment markers
+    if ! sed -i'' -e '/# gosetup_s/,/# gosetup_e/d' "$shell_profile"; then
+        echo -e "${RED_COLOR}Error:${RESET} Cannot make edits into $shell_profile"
+        exit 1
+    fi
+
+    echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} Uninstalled Go successfully.${RESET}"
+}
+
+function upgrade_go {
+    local latest_ver=
+    local installed_go_ver=
+    local platform=
+    local GOROOT=
+    local choice=
+    local forced=
+
+    if ! installed_go_ver=$(get_installed_go_version); then
+        echo -e "${RED_COLOR}Error:${RESET} Go is not installed!" >&2
+        return 1
+    fi
+
+    if latest_ver=$(get_latest_go_version); then
+
+        if [[ -z "$latest_ver" ]]; then
+            echo -e "${RED_COLOR}Error:${RESET} Unable to get latest go version" >&2
+            return 1
+        fi
+    fi
+
+    if [[ $latest_ver == "$installed_go_ver" ]]; then
+        echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} Latest version of Go is already installed in your system.${RESET}"
+        exit 0
+    fi
+
+    if ! platform=$(detect_host_platform); then
+        echo -e "${RED_COLOR}Error:${RESET} Unsupported host platform." >&2
+        exit 1
+    fi
+
+    GOROOT=$(go env GOROOT)
+
+    echo -e "${CYAN_COLOR}Info:${RESET} This operation will remove the existing go installation at $GOROOT"
+
+    if [[ $forced != "--force" && $forced != "-f" ]]; then
+        echo -e "${CYAN_COLOR}Info:${RESET} Do you want continue ? (y/n): \c"
+        read -r choice
+    fi
+
+    case $choice in
+        "" | "y"* | "Y"*)
+            if ! remove_go; then
+                return 1
+            fi
+            install_go "$latest_ver" "$platform" "$(dirname "$GOROOT")"
+            ;;
+        "n"* | "N"*)
+            echo -e "${GREEN_COLOR}No operation!${RESET}"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED_COLOR}Error:${RESET} Invalid choice!"
+            exit 1
+            ;;
+    esac
+}
+
 function install_go {
     local installed_go_ver=
     local go_ver=
@@ -219,7 +319,7 @@ function install_go {
         fi
     fi
 
-    if [[ $installed_go_ver == "go$1" ]]; then
+    if [[ $installed_go_ver == "$1" ]]; then
         echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} Go is already installed with version: $1.${RESET}"
         exit 0
     else
@@ -257,18 +357,18 @@ function install_go {
 
     touch "$HOME/.${shell_profile}"
     {
-      echo '# gosetup'
+      echo '# gosetup_s'
       echo "export GOROOT=$GOROOT"
       echo "export GOPATH=$GOPATH"
       # shellcheck disable=SC2016
       echo 'export PATH=$PATH:$GOROOT/bin:$GOPATH/bin'
-      echo ""
+      echo '# gosetup_e'
     } >>"$HOME/.${shell_profile}"
 }
 
 function installer {
-    local ver=
-    local platform=
+    local ver= # version info is dispatched as "goX.X.[X]"
+    local platform= # platform is dispatched as "<os>-<arch>"
     local dir=
 
     if [[ -z $1 || $1 == "latest" ]]; then
@@ -313,10 +413,11 @@ function help {
     echo -e "${CYAN_COLOR}Usage:${RESET} $(basename "$0") [command] [option]"
     echo -e ""
     echo -e "${CYAN_COLOR}Commands:${RESET}"
-    echo -e "   ${GREEN_COLOR}install [Version] [Directory]${RESET}      Install the latest Go binary for the host architecture inside 'dir' (default is ~/.local/go)"
-    echo -e "   ${GREEN_COLOR}src [Directory]${RESET}                    Get the Go source code inside 'dir' (default is ~/.local/go)"
-    echo -e "   ${GREEN_COLOR}upgrade [Directory]${RESET}                Upgrade current Go binary inside 'dir' (default search location is ~/.local/go)"
-    echo -e "   ${GREEN_COLOR}help, --help, -h${RESET}                   Print this help message"
+    echo -e "   ${GREEN_COLOR}install [Version] [Directory]${RESET}      Install the latest Go binary for the host architecture inside 'dir' (default is ~/.local/go)."
+    echo -e "   ${GREEN_COLOR}src [Directory]${RESET}                    Get the Go source code inside 'dir' (default is ~/.local/go)."
+    echo -e "   ${GREEN_COLOR}upgrade [--force | -f]${RESET}             Upgrade current Go binaries inside \$GOROOT. [--force] does not prompts for user's choice."
+    echo -e "   ${GREEN_COLOR}remove${RESET}                             Removes the current Go installation at \$GOROOT"
+    echo -e "   ${GREEN_COLOR}help, --help, -h${RESET}                   Print this help message."
     echo -e ""
     echo -e "${CYAN_COLOR}Examples:${RESET}"
     echo -e "   ${GREEN_COLOR}$(basename "$0") install 1.21${RESET}"
@@ -330,7 +431,7 @@ function help {
     echo -e "   ${GREEN_COLOR}The 'Version' should be formated as <Major>.<Minor>.<Patch>${RESET}"
     echo -e "   ${GREEN_COLOR}The given installation 'Directory' must exist.${RESET}"
     echo -e ""
-    echo -e "${CYAN_COLOR}Version:${RESET} ${GREEN_COLOR}1.1.0${RESET}"
+    echo -e "${CYAN_COLOR}Version:${RESET} ${GREEN_COLOR}1.2.0${RESET}"
 }
 
 function main {
@@ -371,7 +472,11 @@ function main {
             fi
             ;;
         "upgrade")
-            upgrade "$@"
+            upgrade_go "$@"
+            check_installation
+            ;;
+        "remove")
+            remove_go
             ;;
         "help" | "-h" | "--help")
             help
