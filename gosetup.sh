@@ -60,6 +60,20 @@ function detect_host_platform {
                     ;;
             esac
             ;;
+        "Darwin")
+            os="darwin"
+            case $arch in
+                "x86_64")
+                    arch="amd64"
+                    ;;
+                "arm64")
+                    arch="arm64"
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
+            ;;
         *)
             return 1
             ;;
@@ -313,7 +327,7 @@ function help {
     echo -e "   ${GREEN_COLOR}The 'Version' should be formated as <Major>.<Minor>.<Patch>${RESET}"
     echo -e "   ${GREEN_COLOR}The given installation 'Directory' must exist.${RESET}"
     echo -e ""
-    echo -e "${CYAN_COLOR}Version:${RESET} ${GREEN_COLOR}1.0.0${RESET}"
+    echo -e "${CYAN_COLOR}Version:${RESET} ${GREEN_COLOR}1.1.0${RESET}"
 }
 
 function main {
