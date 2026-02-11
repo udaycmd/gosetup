@@ -1,6 +1,6 @@
 ## GoSetup: A Golang Installer for Linux and MacOS
 
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) 
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Language: Bash](https://img.shields.io/badge/Language-Bash-4EAA25.svg)
 
 ### Installation
@@ -14,7 +14,7 @@ Get up and running in seconds. Just download the script and make it executable.
 curl -sL https://raw.githubusercontent.com/udaycmd/gosetup/main/gosetup.sh -o gosetup
 
 # Using wget
-wget -qO gosetup https://raw.githubusercontent.com/udayt/gosetup/main/gosetup.sh
+wget -qO gosetup https://raw.githubusercontent.com/udaycmd/gosetup/main/gosetup.sh
 ```
 
 #### 2. Permissions
