@@ -4,7 +4,7 @@ mkdir -p "$HOME/.local"
 ./gosetup remove
 ./gosetup install 1.21.0
 
-GOBIN="$HOME/.local/bin"
+GOBIN="$HOME/.local/go/bin"
 echo "$GOBIN" >> $GITHUB_PATH
 export PATH="$GOBIN:$PATH"
 
