@@ -192,12 +192,12 @@ function get_go_source {
 
     echo -e "${CYAN_COLOR}Info:${RESET} Extracting binary archive at ${dir}"
 
-    if ! tar -xzf "$dir/$file"; then
+    if ! tar -xzf "$dir/$file" -C "$dir/"; then
         echo -e "${RED_COLOR}Error:${RESET} Unable to extract the archive" >&2
         return 1
     fi
 
-    rm -v "$dir/$file"
+    rm "$dir/$file"
 
     echo -e "${CYAN_COLOR}Ok:${RESET}${GREEN_COLOR} Go source is downloaded!${RESET}"
     exit 0
@@ -314,7 +314,7 @@ function install_go {
     if installed_go_ver=$(get_installed_go_version); then
         echo -e "${CYAN_COLOR}Info:${RESET} Existing Go installation found with $installed_go_ver."
         if [[ $dir == $(dirname "$(go env GOROOT)") ]]; then
-            echo -e "${RED_COLOR}Error:${RESET} Can't install as go already installed at $dir." >&2
+            echo -e "${RED_COLOR}Error:${RESET} Can't install as go already installed at $dir. Use 'gosetup upgrade' to install latest version." >&2
             return 1
         fi
     fi
@@ -329,21 +329,21 @@ function install_go {
     platform=$2
     file="${go_ver}.${platform}.tar.gz"
 
-    echo -e "${CYAN_COLOR}Info:${RESET} Downloading ${go_ver} for ${platform} at ${dir}."
+    echo -e "${CYAN_COLOR}Info:${RESET} Downloading ${go_ver} for ${platform} at ${dir}"
 
     if ! download_it "$file" "$dir"; then
         echo -e "${RED_COLOR}Error:${RESET} Download failed." >&2
         exit 1
     fi
 
-    echo -e "${CYAN_COLOR}Info:${RESET} Extracting binary archive at ${dir}."
+    echo -e "${CYAN_COLOR}Info:${RESET} Extracting binary archive at ${dir}"
 
-    if ! tar -xzf "$dir/$file"; then
+    if ! tar -xzf "$dir/$file" -C "$dir/"; then
         echo -e "${RED_COLOR}Error:${RESET} Unable to extract the archive." >&2
         return 1
     fi
 
-    rm -v "$dir/$file"
+    rm "$dir/$file"
 
     local GOROOT="$dir/go"
     [ -z "${GOPATH:-}" ] && GOPATH="$HOME/.go"
@@ -391,7 +391,7 @@ function installer {
     fi
 
     if [[ -z $2 ]]; then
-        dir="$HOME/.local/"
+        dir="$HOME/.local"
     else
         dir="$(cd "$2" && pwd)"
     fi
