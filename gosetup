@@ -251,7 +251,7 @@ function upgrade_go {
     local platform=
     local GOROOT=
     local choice=
-    local forced=
+    local forced=$1
 
     if ! installed_go_ver=$(get_installed_go_version); then
         echo -e "${RED_COLOR}Error:${RESET} Go is not installed!" >&2
