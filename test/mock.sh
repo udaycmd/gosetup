@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 ./gosetup remove
-source "$HOME"/.bashrc
 ./gosetup install 1.21.0 .
-source "$HOME"/.bashrc
+echo "$GOROOT"/bin >> $GITHUB_PATH
 ./gosetup upgrade -f
+echo "$GOROOT"/bin >> $GITHUB_PATH
 ./gosetup remove
 ./gosetup
