@@ -220,7 +220,7 @@ function remove_go {
         exit 1
     fi
 
-    echo -e "${CYAN_COLOR}Info:${RESET} Removeing $installed_ver from your system."
+    echo -e "${CYAN_COLOR}Info:${RESET} Removing $installed_ver from your system."
 
     if ! rm -rf "$GOROOT"; then
         echo -e "${RED_COLOR}Error:${RESET} Couldn't remove Go at $GOROOT"
