@@ -431,7 +431,7 @@ function help {
     echo -e "   ${GREEN_COLOR}The 'Version' should be formated as <Major>.<Minor>.<Patch>${RESET}"
     echo -e "   ${GREEN_COLOR}The given installation 'Directory' must exist.${RESET}"
     echo -e ""
-    echo -e "${CYAN_COLOR}Version:${RESET} ${GREEN_COLOR}1.3.0${RESET}"
+    echo -e "${CYAN_COLOR}Version:${RESET} ${GREEN_COLOR}1.3.1${RESET}"
 }
 
 function main {
