@@ -11,10 +11,10 @@ Get up and running in seconds. Just download the script and make it executable.
 
 ```bash
 # Using curl
-curl -sL https://raw.githubusercontent.com/udaycmd/gosetup/main/gosetup.sh -o gosetup
+curl -sL https://raw.githubusercontent.com/udaycmd/gosetup/main/gosetup -o gosetup
 
 # Using wget
-wget -qO gosetup https://raw.githubusercontent.com/udaycmd/gosetup/main/gosetup.sh
+wget -qO gosetup https://raw.githubusercontent.com/udaycmd/gosetup/main/gosetup
 ```
 
 #### 2. Permissions
