@@ -26,10 +26,10 @@
 
 set -eu
 
-RED_COLOR="\e[31m"
-GREEN_COLOR="\e[32m"
-CYAN_COLOR="\e[36m"
-RESET="\e[0m"
+RED_COLOR="\033[31m"
+GREEN_COLOR="\033[32m"
+CYAN_COLOR="\033[36m"
+RESET="\033[0m"
 GO_VERSION_REGEX="[0-9]+\.[0-9]+(\.[0-9]+)?"
 
 function detect_host_platform {
